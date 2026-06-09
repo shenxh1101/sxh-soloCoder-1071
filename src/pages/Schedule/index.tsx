@@ -12,6 +12,9 @@ import {
   Clock,
   MoreHorizontal,
   UserPlus,
+  Eye,
+  Check,
+  X,
 } from 'lucide-react';
 import { useCRMStore } from '../../store/useCRMStore';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
@@ -21,7 +24,7 @@ import { Avatar } from '../../components/ui/Avatar';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { Task } from '../../types';
+import { Task, User as UserType } from '../../types';
 import {
   formatDate,
   formatShortDate,
@@ -31,6 +34,12 @@ import {
 } from '../../utils/helpers';
 
 type ViewMode = 'list' | 'calendar';
+
+interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'info';
+}
 
 export const Schedule = () => {
   const navigate = useNavigate();
@@ -50,6 +59,8 @@ export const Schedule = () => {
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [viewingUser, setViewingUser] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const [taskForm, setTaskForm] = useState({
     customerId: '',
@@ -59,14 +70,32 @@ export const Schedule = () => {
   });
 
   useEffect(() => {
-    setTaskForm(prev => ({
-      ...prev,
-      assignedTo: currentUser.id,
-    }));
-  }, [currentUser.id]);
+    if (viewingUser && currentUser.role !== 'manager') {
+      setViewingUser(null);
+    }
+  }, [currentUser.role, viewingUser]);
+
+  useEffect(() => {
+    if (!viewingUser) {
+      setTaskForm(prev => ({
+        ...prev,
+        assignedTo: currentUser.id,
+      }));
+    }
+  }, [currentUser.id, viewingUser]);
+
+  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3000);
+  };
 
   const allTasks = getAllTasks();
-  const currentUserTasks = allTasks.filter(t => t.assignedTo === currentUser.id);
+  const effectiveUserId = viewingUser || currentUser.id;
+  const currentUserTasks = allTasks.filter(t => t.assignedTo === effectiveUserId);
+  const effectiveUser = users.find(u => u.id === effectiveUserId);
 
   const groupedTasks = useMemo(() => {
     const sorted = [...currentUserTasks].sort((a, b) => {
@@ -113,6 +142,14 @@ export const Schedule = () => {
         completed: false,
         assignedTo: taskForm.assignedTo,
       });
+      
+      const assignedUser = users.find(u => u.id === taskForm.assignedTo);
+      if (taskForm.assignedTo !== currentUser.id) {
+        showToast(`任务已成功派发给 ${assignedUser?.name || '该成员'}`, 'success');
+      } else {
+        showToast('任务创建成功', 'success');
+      }
+      
       setShowAddModal(false);
       setTaskForm({
         customerId: '',
@@ -141,14 +178,46 @@ export const Schedule = () => {
   const totalToday = currentUserTasks.filter(t => t.date === today).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map(toast => (
+          <div
+            key={toast.id}
+            className={cn(
+              'flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg animate-in fade-in',
+              toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-blue-500 text-white'
+            )}
+          >
+            {toast.type === 'success' ? <Check className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            <span className="text-sm font-medium">{toast.message}</span>
+            <button onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}>
+              <X className="w-4 h-4 opacity-80 hover:opacity-100" />
+            </button>
+          </div>
+        ))}
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: "'Noto Serif SC', serif" }}>
-            跟进日程
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: "'Noto Serif SC', serif" }}>
+              跟进日程
+            </h1>
+            {viewingUser && effectiveUser && (
+              <Badge variant="info" className="flex items-center gap-1.5 px-3 py-1">
+                <Eye className="w-3 h-3" />
+                正在查看: {effectiveUser.name} 的任务
+                <button
+                  onClick={() => setViewingUser(null)}
+                  className="ml-1 hover:text-white transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-slate-500 mt-1">
-            管理您的客户跟进计划和任务
+            {viewingUser ? `查看 ${effectiveUser?.name} 的客户跟进计划和任务` : '管理您的客户跟进计划和任务'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -412,42 +481,80 @@ export const Schedule = () => {
             {currentUser.role === 'manager' && (
               <Card>
                 <CardHeader>
-                  <h3 className="font-semibold text-slate-900">团队成员</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-slate-900">团队成员</h3>
+                    {viewingUser && (
+                      <Button variant="ghost" size="sm" onClick={() => setViewingUser(null)}>
+                        查看全部
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     {users.filter(u => u.role === 'sales').map(user => {
                       const userTasks = allTasks.filter(t => t.assignedTo === user.id);
                       const pendingCount = userTasks.filter(t => !t.completed).length;
+                      const overdueCount = userTasks.filter(t => !t.completed && t.date < today).length;
                       const completionRate = userTasks.length > 0
                         ? Math.round((userTasks.filter(t => t.completed).length / userTasks.length) * 100)
                         : 0;
+                      const isViewing = viewingUser === user.id;
                       return (
                         <div
                           key={user.id}
-                          className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
-                          onClick={() => {
-                            setTaskForm({
-                              customerId: '',
-                              title: '',
-                              date: getToday(),
-                              assignedTo: user.id,
-                            });
-                            setShowAddModal(true);
-                          }}
+                          className={cn(
+                            'flex items-center justify-between p-3 rounded-lg transition-colors',
+                            isViewing ? 'bg-blue-50 border-2 border-blue-200' : 'hover:bg-slate-50 cursor-pointer'
+                          )}
                         >
                           <div className="flex items-center gap-3">
                             <Avatar name={user.name} size="md" />
                             <div>
-                              <p className="text-sm font-medium text-slate-900">{user.name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-slate-900">{user.name}</p>
+                                {overdueCount > 0 && (
+                                  <Badge variant="danger" size="sm">{overdueCount}个逾期</Badge>
+                                )}
+                              </div>
                               <p className="text-xs text-slate-500">
                                 {pendingCount}个待办 · 完成率{completionRate}%
                               </p>
                             </div>
                           </div>
-                          <Button variant="ghost" size="sm">
-                            <UserPlus className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingUser(isViewing ? null : user.id);
+                              }}
+                              className={cn(
+                                isViewing && 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              )}
+                              title={isViewing ? '返回我的任务' : `查看${user.name}的任务`}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTaskForm({
+                                  customerId: '',
+                                  title: '',
+                                  date: getToday(),
+                                  assignedTo: user.id,
+                                });
+                                setShowAddModal(true);
+                              }}
+                              title={`给${user.name}派任务`}
+                            >
+                              <UserPlus className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}

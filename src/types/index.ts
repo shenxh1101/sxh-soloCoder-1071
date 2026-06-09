@@ -72,6 +72,7 @@ export interface Opportunity {
   createdAt: string;
   updatedAt: string;
   quotes: Quote[];
+  activityLog: OpportunityActivityLog[];
 }
 
 export interface Task {
@@ -81,7 +82,40 @@ export interface Task {
   title: string;
   date: string;
   completed: boolean;
+  completedAt?: string;
   assignedTo: string;
+}
+
+export type OpportunityActivityType = 'stage_change' | 'quote_add' | 'owner_change' | 'note';
+
+export interface OpportunityActivityLog {
+  id: string;
+  type: OpportunityActivityType;
+  description: string;
+  userId: string;
+  createdAt: string;
+  oldValue?: string;
+  newValue?: string;
+}
+
+export interface CustomerSummary {
+  lastContact: {
+    date: string;
+    type: string;
+    content: string;
+    user: string;
+  } | null;
+  lastQuote: {
+    date: string;
+    amount: number;
+    opportunityName: string;
+  } | null;
+  nextTask: {
+    title: string;
+    date: string;
+    assignedTo: string;
+  } | null;
+  risks: string[];
 }
 
 export interface Customer {

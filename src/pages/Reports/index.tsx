@@ -340,7 +340,7 @@ export const Reports = () => {
             </div>
 
             <div className="space-y-3">
-              {weeklyWorkload.filter(w => w.userId !== 'user-1').map((member) => {
+              {weeklyWorkload.map((member) => {
                 const workloadScore = member.newFollowUps + member.completedTasks + member.quoteCount;
                 const needsSupport = member.overdueTasks > 2 || (workloadScore < 5 && member.overdueTasks > 0);
 

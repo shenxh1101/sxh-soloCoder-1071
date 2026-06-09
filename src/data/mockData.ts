@@ -1,4 +1,4 @@
-import { Customer, User, Opportunity, Contact, FollowUp, Attachment, Task, Quote } from '../types';
+import { Customer, User, Opportunity, Contact, FollowUp, Attachment, Task, Quote, STAGE_LABELS } from '../types';
 
 export const mockUsers: User[] = [
   {
@@ -107,6 +107,41 @@ const generateOpportunities = (customerId: string, ownerId: string): Opportunity
         createdAt: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
       }] : []),
     ] : [];
+
+    const activityLog = [];
+    if (stageIndex > 0) {
+      activityLog.push({
+        id: `activity-${customerId}-${i}-0`,
+        type: 'stage_change' as const,
+        description: `阶段从「${STAGE_LABELS.initial}」变更为「${STAGE_LABELS[stages[stageIndex]]}」`,
+        userId: ownerId,
+        createdAt: new Date(today.getTime() - (stageIndex * 5) * 24 * 60 * 60 * 1000).toISOString(),
+        oldValue: 'initial',
+        newValue: stages[stageIndex],
+      });
+    }
+    if (quotes.length > 0) {
+      activityLog.push({
+        id: `activity-${customerId}-${i}-1`,
+        type: 'quote_add' as const,
+        description: `新增报价：${quotes[0].amount.toLocaleString('zh-CN')} 元`,
+        userId: ownerId,
+        createdAt: quotes[0].createdAt,
+        newValue: quotes[0].amount.toString(),
+      });
+    }
+    if (quotes.length > 1) {
+      activityLog.push({
+        id: `activity-${customerId}-${i}-2`,
+        type: 'quote_add' as const,
+        description: `新增报价：${quotes[1].amount.toLocaleString('zh-CN')} 元`,
+        userId: ownerId,
+        createdAt: quotes[1].createdAt,
+        newValue: quotes[1].amount.toString(),
+      });
+    }
+
+    activityLog.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
     return {
       id: `opp-${customerId}-${i}`,
@@ -120,6 +155,7 @@ const generateOpportunities = (customerId: string, ownerId: string): Opportunity
       createdAt: new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       updatedAt: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       quotes,
+      activityLog,
     };
   });
 };
@@ -130,13 +166,24 @@ const generateTasks = (customerId: string, assignedTo: string, count: number): T
   
   return Array.from({ length: count }, (_, i) => {
     const date = new Date(today);
-    date.setDate(date.getDate() + i);
+    date.setDate(date.getDate() + i - 2);
+    const completed = Math.random() > 0.5;
+    const taskDate = date.toISOString().split('T')[0];
+    
+    let completedAt: string | undefined;
+    if (completed) {
+      const completedDate = new Date(date);
+      completedDate.setHours(10, 30, 0, 0);
+      completedAt = completedDate.toISOString();
+    }
+    
     return {
       id: `task-${customerId}-${i}`,
       customerId,
       title: titles[i % titles.length],
-      date: date.toISOString().split('T')[0],
-      completed: Math.random() > 0.5,
+      date: taskDate,
+      completed,
+      completedAt,
       assignedTo,
     };
   });

@@ -6,6 +6,7 @@ import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
 import { Badge } from './ui/Badge';
 import { Quote, Opportunity } from '../types';
+import { OpportunityActivityLog } from './OpportunityActivityLog';
 import { formatCurrency, formatDate, getToday } from '../utils/helpers';
 import { useCRMStore } from '../store/useCRMStore';
 import { cn } from '../utils/helpers';
@@ -184,6 +185,10 @@ export const QuoteModal = ({ isOpen, onClose, opportunity }: QuoteModalProps) =>
             </div>
           </form>
         )}
+
+        <div className="pt-4 border-t border-slate-200">
+          <OpportunityActivityLog opportunityId={opportunity.id} />
+        </div>
 
         {quotes.length === 0 ? (
           <div className="text-center py-12 text-slate-500">

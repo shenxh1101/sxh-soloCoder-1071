@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Customer, User, Contact, FollowUp, Opportunity, Task, Quote, Attachment, FunnelData, TeamPerformance } from '../types';
+import { Customer, User, Contact, FollowUp, Opportunity, Task, Quote, Attachment, FunnelData, TeamPerformance, TaskStats } from '../types';
 import { mockCustomers, mockUsers } from '../data/mockData';
-import { generateId, calculateSalesFunnel } from '../utils/helpers';
+import { generateId, calculateSalesFunnel, getToday } from '../utils/helpers';
 
 interface CRMState {
   customers: Customer[];
@@ -18,7 +18,7 @@ interface CRMState {
 
   initData: () => void;
 
-  addCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt' | 'contacts' | 'followUps' | 'attachments' | 'opportunities' | 'tasks'>) => void;
+  addCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt' | 'contacts' | 'followUps' | 'attachments' | 'opportunities' | 'tasks'>, contact?: Omit<Contact, 'id' | 'customerId'>) => string;
   updateCustomer: (id: string, data: Partial<Customer>) => void;
   deleteCustomer: (id: string) => void;
   getCustomerById: (id: string) => Customer | undefined;
@@ -36,11 +36,15 @@ interface CRMState {
   updateOpportunityStage: (opportunityId: string, stage: Opportunity['stage']) => void;
   updateOpportunity: (opportunityId: string, data: Partial<Opportunity>) => void;
   addQuote: (opportunityId: string, quote: Omit<Quote, 'id'>) => void;
+  getQuotesByOpportunity: (opportunityId: string) => Quote[];
+  getOpportunityById: (opportunityId: string) => Opportunity | undefined;
 
   addTask: (task: Omit<Task, 'id'>) => void;
   toggleTask: (taskId: string) => void;
   assignTask: (taskId: string, userId: string) => void;
   deleteTask: (taskId: string) => void;
+  setCurrentUser: (userId: string) => void;
+  getTaskStats: (userId: string) => TaskStats;
 
   setSearchKeyword: (keyword: string) => void;
   setFilters: (filters: { level?: string; source?: string; ownerId?: string }) => void;
@@ -68,13 +72,24 @@ export const useCRMStore = create<CRMState>()(
         set({ customers: mockCustomers, loading: false });
       },
 
-      addCustomer: (customer) => {
+      addCustomer: (customer, contact) => {
+        const newCustomerId = generateId();
+        const contacts: Contact[] = [];
+        
+        if (contact && contact.name) {
+          contacts.push({
+            ...contact,
+            id: generateId(),
+            customerId: newCustomerId,
+          });
+        }
+
         const newCustomer: Customer = {
           ...customer,
-          id: generateId(),
+          id: newCustomerId,
           createdAt: new Date().toISOString().split('T')[0],
           updatedAt: new Date().toISOString().split('T')[0],
-          contacts: [],
+          contacts,
           followUps: [],
           attachments: [],
           opportunities: [],
@@ -83,6 +98,7 @@ export const useCRMStore = create<CRMState>()(
         set((state) => ({
           customers: [...state.customers, newCustomer],
         }));
+        return newCustomerId;
       },
 
       updateCustomer: (id, data) => {
@@ -254,10 +270,19 @@ export const useCRMStore = create<CRMState>()(
           customers: state.customers.map((c) => ({
             ...c,
             opportunities: c.opportunities.map((o) =>
-              o.id === opportunityId ? { ...o, quotes: [...o.quotes, newQuote] } : o
+              o.id === opportunityId ? { ...o, quotes: [...o.quotes, newQuote], updatedAt: new Date().toISOString().split('T')[0] } : o
             ),
           })),
         }));
+      },
+
+      getQuotesByOpportunity: (opportunityId) => {
+        const opportunity = get().getOpportunityById(opportunityId);
+        return opportunity ? opportunity.quotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
+      },
+
+      getOpportunityById: (opportunityId) => {
+        return get().customers.flatMap((c) => c.opportunities).find((o) => o.id === opportunityId);
       },
 
       addTask: (task) => {
@@ -299,6 +324,32 @@ export const useCRMStore = create<CRMState>()(
             tasks: c.tasks.filter((t) => t.id !== taskId),
           })),
         }));
+      },
+
+      setCurrentUser: (userId) => {
+        const user = get().users.find((u) => u.id === userId);
+        if (user) {
+          set({ currentUser: user });
+        }
+      },
+
+      getTaskStats: (userId) => {
+        const tasks = get().getTasksByUser(userId);
+        const today = getToday();
+        const completedTasks = tasks.filter((t) => t.completed);
+        const pendingTasks = tasks.filter((t) => !t.completed);
+        const overdueTasks = pendingTasks.filter((t) => t.date < today);
+
+        return {
+          userId,
+          totalTasks: tasks.length,
+          completedTasks: completedTasks.length,
+          pendingTasks: pendingTasks.length,
+          overdueTasks: overdueTasks.length,
+          completionRate: tasks.length > 0
+            ? Math.round((completedTasks.length / tasks.length) * 100)
+            : 0,
+        };
       },
 
       setSearchKeyword: (keyword) => {
@@ -345,6 +396,8 @@ export const useCRMStore = create<CRMState>()(
           const conversionRate = userOpportunities.length > 0
             ? Math.round((wonOpportunities.length / userOpportunities.length) * 100)
             : 0;
+          
+          const taskStats = get().getTaskStats(user.id);
 
           return {
             userId: user.id,
@@ -354,6 +407,9 @@ export const useCRMStore = create<CRMState>()(
             wonOpportunities: wonOpportunities.length,
             wonAmount,
             conversionRate,
+            totalTasks: taskStats.totalTasks,
+            completedTasks: taskStats.completedTasks,
+            taskCompletionRate: taskStats.completionRate,
           };
         });
       },

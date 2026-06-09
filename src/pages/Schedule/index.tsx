@@ -412,17 +412,29 @@ export const Schedule = () => {
                     {users.filter(u => u.role === 'sales').map(user => {
                       const userTasks = allTasks.filter(t => t.assignedTo === user.id);
                       const pendingCount = userTasks.filter(t => !t.completed).length;
+                      const completionRate = userTasks.length > 0
+                        ? Math.round((userTasks.filter(t => t.completed).length / userTasks.length) * 100)
+                        : 0;
                       return (
                         <div
                           key={user.id}
-                          className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors"
+                          className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+                          onClick={() => {
+                            setTaskForm({
+                              customerId: '',
+                              title: '',
+                              date: getToday(),
+                              assignedTo: user.id,
+                            });
+                            setShowAddModal(true);
+                          }}
                         >
                           <div className="flex items-center gap-3">
                             <Avatar name={user.name} size="md" />
                             <div>
                               <p className="text-sm font-medium text-slate-900">{user.name}</p>
                               <p className="text-xs text-slate-500">
-                                {pendingCount}个待办
+                                {pendingCount}个待办 · 完成率{completionRate}%
                               </p>
                             </div>
                           </div>

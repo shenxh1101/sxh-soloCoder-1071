@@ -34,6 +34,7 @@ export interface Attachment {
   type: string;
   size: number;
   url: string;
+  data?: string;
   uploadedAt: string;
 }
 
@@ -105,6 +106,18 @@ export interface TeamPerformance {
   wonOpportunities: number;
   wonAmount: number;
   conversionRate: number;
+  totalTasks: number;
+  completedTasks: number;
+  taskCompletionRate: number;
+}
+
+export interface TaskStats {
+  userId: string;
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  overdueTasks: number;
+  completionRate: number;
 }
 
 export const STAGE_LABELS: Record<Opportunity['stage'], string> = {

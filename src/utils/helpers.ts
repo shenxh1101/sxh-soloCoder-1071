@@ -157,3 +157,21 @@ export const getMonthDays = (year: number, month: number): Date[] => {
   
   return days;
 };
+
+export const downloadFile = (data: string, filename: string, mimeType: string) => {
+  const link = document.createElement('a');
+  link.href = data;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+export const readFileAsBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};

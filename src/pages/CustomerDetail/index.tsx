@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -20,6 +20,10 @@ import {
   DollarSign,
   Target,
   CalendarDays,
+  FileImage,
+  FileSpreadsheet,
+  File,
+  Eye,
 } from 'lucide-react';
 import { useCRMStore } from '../../store/useCRMStore';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
@@ -49,7 +53,11 @@ import {
   getRelativeTime,
   generateId,
   getToday,
+  downloadFile,
+  getFileIcon,
+  readFileAsBase64,
 } from '../../utils/helpers';
+
 import { cn } from '../../utils/helpers';
 
 type TabType = 'info' | 'contacts' | 'followups' | 'opportunities' | 'attachments';
@@ -210,19 +218,36 @@ export const CustomerDetail = () => {
     });
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       const file = files[0];
-      addAttachment(customer.id, {
-        customerId: customer.id,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        url: URL.createObjectURL(file),
-        uploadedAt: getToday(),
-      });
+      try {
+        const base64Data = await readFileAsBase64(file);
+        addAttachment(customer.id, {
+          customerId: customer.id,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          url: base64Data,
+          data: base64Data,
+          uploadedAt: getToday(),
+        });
+      } catch (error) {
+        console.error('文件上传失败:', error);
+      }
     }
+    e.target.value = '';
+  };
+
+  const handleDownload = (attachment: any) => {
+    const data = attachment.data || attachment.url;
+    downloadFile(data, attachment.name, attachment.type);
+  };
+
+  const handlePreview = (attachment: any) => {
+    const data = attachment.data || attachment.url;
+    window.open(data, '_blank');
   };
 
   const sourceOptions = SOURCES.map(s => ({ value: s, label: s }));
@@ -611,40 +636,81 @@ export const CustomerDetail = () => {
                 </label>
               </div>
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {customer.attachments.map((attachment) => (
-                  <div
-                    key={attachment.id}
-                    className="border border-slate-200 rounded-lg p-4 hover:border-slate-300 transition-colors group"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-slate-400" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {customer.attachments.map((attachment) => {
+                  const fileType = getFileIcon(attachment.type);
+                  const FileIconComponent = fileType === 'FileImage' ? FileImage :
+                    fileType === 'FileSpreadsheet' ? FileSpreadsheet :
+                    fileType === 'FilePresentation' ? FileText :
+                    fileType === 'FileText' ? FileText : File;
+                  const iconColor = fileType === 'FileImage' ? 'text-emerald-500 bg-emerald-50' :
+                    fileType === 'FileSpreadsheet' ? 'text-green-500 bg-green-50' :
+                    fileType === 'FilePresentation' ? 'text-orange-500 bg-orange-50' :
+                    fileType === 'FileText' ? 'text-blue-500 bg-blue-50' :
+                    'text-slate-500 bg-slate-50';
+
+                  return (
+                    <div
+                      key={attachment.id}
+                      className="border border-slate-200 rounded-lg p-4 hover:border-slate-300 transition-colors group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+                          <FileIconComponent className="w-7 h-7" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p 
+                            className="text-sm font-medium text-slate-900 truncate" 
+                            title={attachment.name}
+                          >
+                            {attachment.name}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span className="text-xs text-slate-500">
+                              {formatFileSize(attachment.size)}
+                            </span>
+                            <span className="text-xs text-slate-300">·</span>
+                            <span className="text-xs text-slate-500">
+                              {formatDate(attachment.uploadedAt)}
+                            </span>
+                          </div>
+                          {attachment.type && (
+                            <p className="text-xs text-slate-400 mt-1 truncate">
+                              {attachment.type}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      
+                      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-100">
                         <button
-                          className="p-1 rounded hover:bg-slate-100"
-                          title="下载"
+                          onClick={() => handlePreview(attachment)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs text-slate-600 hover:bg-slate-50 rounded-lg transition-colors"
+                          title="预览"
                         >
-                          <Download className="w-4 h-4 text-slate-500" />
+                          <Eye className="w-3.5 h-3.5" />
+                          预览
                         </button>
                         <button
-                          className="p-1 rounded hover:bg-red-50"
+                          onClick={() => handleDownload(attachment)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="下载"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          下载
+                        </button>
+                        <button
                           onClick={() => deleteAttachment(customer.id, attachment.id)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="删除"
                         >
-                          <Trash2 className="w-4 h-4 text-red-500" />
+                          <Trash2 className="w-3.5 h-3.5" />
+                          删除
                         </button>
                       </div>
                     </div>
-                    <p className="text-sm font-medium text-slate-900 truncate" title={attachment.name}>
-                      {attachment.name}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {formatFileSize(attachment.size)} · {formatDate(attachment.uploadedAt)}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

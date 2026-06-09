@@ -58,6 +58,14 @@ export const CustomerList = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    const contactData = formData.contactName ? {
+      name: formData.contactName,
+      position: formData.contactPosition,
+      phone: formData.contactPhone,
+      email: formData.contactEmail,
+      isPrimary: true,
+    } : undefined;
+
     addCustomer({
       name: formData.name,
       industry: formData.industry,
@@ -67,19 +75,7 @@ export const CustomerList = () => {
       address: formData.address,
       website: formData.website,
       ownerId: currentUser.id,
-    });
-
-    const newCustomer = customers[customers.length - 1];
-    if (formData.contactName && newCustomer) {
-      useCRMStore.getState().addContact(newCustomer.id, {
-        customerId: newCustomer.id,
-        name: formData.contactName,
-        position: formData.contactPosition,
-        phone: formData.contactPhone,
-        email: formData.contactEmail,
-        isPrimary: true,
-      });
-    }
+    }, contactData);
 
     setIsModalOpen(false);
     setFormData({

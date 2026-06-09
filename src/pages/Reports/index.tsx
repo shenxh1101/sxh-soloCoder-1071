@@ -229,7 +229,7 @@ export const Reports = () => {
                         <Badge variant="info" size="sm">我</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex flex-wrap items-center gap-3 mt-1">
                       <span className="text-xs text-slate-500">
                         {member.totalOpportunities}个商机
                       </span>
@@ -239,6 +239,22 @@ export const Reports = () => {
                       <span className="text-xs text-emerald-600">
                         转化率{member.conversionRate}%
                       </span>
+                      <span className="text-xs text-blue-600">
+                        任务完成率{member.taskCompletionRate}%
+                      </span>
+                    </div>
+                    <div className="mt-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">
+                          任务进度: {member.completedTasks}/{member.totalTasks}
+                        </span>
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full transition-all"
+                            style={{ width: `${member.taskCompletionRate}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">

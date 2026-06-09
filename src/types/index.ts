@@ -87,6 +87,7 @@ export interface Task {
 }
 
 export type OpportunityActivityType = 'stage_change' | 'quote_add' | 'owner_change' | 'note';
+export type NoteCategory = 'discussion' | 'risk' | 'action';
 
 export interface OpportunityActivityLog {
   id: string;
@@ -96,7 +97,51 @@ export interface OpportunityActivityLog {
   createdAt: string;
   oldValue?: string;
   newValue?: string;
+  noteCategory?: NoteCategory;
 }
+
+export type RiskItemType = 'overdue_task' | 'no_followup' | 'stalled_opportunity' | 'quote_no_progress';
+
+export interface RiskItem {
+  id: string;
+  type: RiskItemType;
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  customerId: string;
+  customerName: string;
+  opportunityId?: string;
+  opportunityName?: string;
+  ownerId: string;
+  ownerName: string;
+  days: number;
+  lastActivity?: string;
+}
+
+export const NOTE_CATEGORY_LABELS: Record<NoteCategory, string> = {
+  discussion: '内部讨论',
+  risk: '风险提醒',
+  action: '下一步动作',
+};
+
+export const NOTE_CATEGORY_COLORS: Record<NoteCategory, string> = {
+  discussion: 'bg-blue-500',
+  risk: 'bg-red-500',
+  action: 'bg-amber-500',
+};
+
+export const RISK_TYPE_LABELS: Record<RiskItemType, string> = {
+  overdue_task: '任务逾期',
+  no_followup: '长时间未跟进',
+  stalled_opportunity: '商机停滞',
+  quote_no_progress: '报价后无推进',
+};
+
+export const RISK_SEVERITY_COLORS: Record<string, string> = {
+  high: 'bg-red-100 text-red-700 border-red-200',
+  medium: 'bg-amber-100 text-amber-700 border-amber-200',
+  low: 'bg-blue-100 text-blue-700 border-blue-200',
+};
 
 export interface CustomerSummary {
   lastContact: {

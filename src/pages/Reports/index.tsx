@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users,
   Target,
@@ -13,11 +14,18 @@ import {
   Clock,
   AlertTriangle,
   LayoutGrid,
+  Filter,
+  AlertCircle,
+  Calendar,
+  ExternalLink,
+  MessageSquare,
+  TrendingDown,
 } from 'lucide-react';
 import { useCRMStore } from '../../store/useCRMStore';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Avatar } from '../../components/ui/Avatar';
+import { Select } from '../../components/ui/Select';
 import { SalesFunnelChart } from '../../components/charts/SalesFunnelChart';
 import { SourcePieChart } from '../../components/charts/SourcePieChart';
 import { IndustryBarChart } from '../../components/charts/IndustryBarChart';
@@ -25,17 +33,26 @@ import {
   formatCurrency,
   calculateSourceStats,
   calculateIndustryStats,
+  formatDate,
 } from '../../utils/helpers';
+import { RISK_TYPE_LABELS, RISK_SEVERITY_COLORS, RiskItemType } from '../../types';
 
 export const Reports = () => {
+  const navigate = useNavigate();
   const {
     customers,
     getAllOpportunities,
     getSalesFunnel,
     getTeamPerformance,
     getWeeklyWorkload,
+    getTeamRiskView,
     currentUser,
+    users,
   } = useCRMStore();
+
+  const [riskOwnerFilter, setRiskOwnerFilter] = useState<string>('all');
+  const [riskTypeFilter, setRiskTypeFilter] = useState<string>('all');
+  const [riskSeverityFilter, setRiskSeverityFilter] = useState<string>('all');
 
   const allOpportunities = getAllOpportunities();
   const salesFunnel = getSalesFunnel();
@@ -73,6 +90,52 @@ export const Reports = () => {
   const sortedTeamPerformance = useMemo(() => {
     return [...teamPerformance].sort((a, b) => b.wonAmount - a.wonAmount);
   }, [teamPerformance]);
+
+  const allRisks = useMemo(() => {
+    return getTeamRiskView();
+  }, [getTeamRiskView]);
+
+  const filteredRisks = useMemo(() => {
+    return allRisks.filter((risk) => {
+      if (riskOwnerFilter !== 'all' && risk.ownerId !== riskOwnerFilter) return false;
+      if (riskTypeFilter !== 'all' && risk.type !== riskTypeFilter) return false;
+      if (riskSeverityFilter !== 'all' && risk.severity !== riskSeverityFilter) return false;
+      return true;
+    });
+  }, [allRisks, riskOwnerFilter, riskTypeFilter, riskSeverityFilter]);
+
+  const riskStats = useMemo(() => {
+    return {
+      total: allRisks.length,
+      high: allRisks.filter(r => r.severity === 'high').length,
+      medium: allRisks.filter(r => r.severity === 'medium').length,
+      low: allRisks.filter(r => r.severity === 'low').length,
+    };
+  }, [allRisks]);
+
+  const salesUserOptions = users
+    .filter(u => u.role === 'sales')
+    .map(u => ({ value: u.id, label: u.name }));
+
+  const riskTypeOptions = Object.entries(RISK_TYPE_LABELS).map(([value, label]) => ({ value, label }));
+
+  const handleRiskClick = (risk: any) => {
+    if (risk.opportunityId) {
+      navigate(`/opportunities`);
+    } else {
+      navigate(`/customers/${risk.customerId}`);
+    }
+  };
+
+  const getRiskIcon = (type: RiskItemType) => {
+    switch (type) {
+      case 'overdue_task': return <Clock className="w-4 h-4" />;
+      case 'no_followup': return <MessageSquare className="w-4 h-4" />;
+      case 'stalled_opportunity': return <TrendingDown className="w-4 h-4" />;
+      case 'quote_no_progress': return <DollarSign className="w-4 h-4" />;
+      default: return <AlertCircle className="w-4 h-4" />;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -488,6 +551,144 @@ export const Reports = () => {
               </tbody>
             </table>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                <h3 className="font-semibold text-slate-900">团队风险视图</h3>
+              </div>
+              <p className="text-sm text-slate-500 mt-1">
+                汇总逾期任务、长时间未跟进、商机停滞等风险项
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-xs text-red-600">
+                <AlertCircle className="w-4 h-4" />
+                <span className="font-semibold">{riskStats.high}</span>
+                <span className="text-slate-500">高风险</span>
+              </div>
+              <div className="flex items-center gap-1 text-xs text-amber-600">
+                <AlertCircle className="w-4 h-4" />
+                <span className="font-semibold">{riskStats.medium}</span>
+                <span className="text-slate-500">中风险</span>
+              </div>
+              <div className="flex items-center gap-1 text-xs text-blue-600">
+                <AlertCircle className="w-4 h-4" />
+                <span className="font-semibold">{riskStats.low}</span>
+                <span className="text-slate-500">低风险</span>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="md:col-span-1">
+              <Select
+                label="按人员筛选"
+                value={riskOwnerFilter}
+                onChange={(e) => setRiskOwnerFilter(e.target.value)}
+                options={[{ value: 'all', label: '全部销售人员' }, ...salesUserOptions]}
+              />
+            </div>
+            <div className="md:col-span-1">
+              <Select
+                label="按类型筛选"
+                value={riskTypeFilter}
+                onChange={(e) => setRiskTypeFilter(e.target.value)}
+                options={[{ value: 'all', label: '全部类型' }, ...riskTypeOptions]}
+              />
+            </div>
+            <div className="md:col-span-1">
+              <Select
+                label="按严重程度筛选"
+                value={riskSeverityFilter}
+                onChange={(e) => setRiskSeverityFilter(e.target.value)}
+                options={[
+                  { value: 'all', label: '全部程度' },
+                  { value: 'high', label: '高风险' },
+                  { value: 'medium', label: '中风险' },
+                  { value: 'low', label: '低风险' },
+                ]}
+              />
+            </div>
+          </div>
+
+          {filteredRisks.length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-emerald-300" />
+              <p className="font-medium">暂无风险项</p>
+              <p className="text-sm mt-1">所有客户和商机进展正常</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredRisks.map((risk) => (
+                <div
+                  key={risk.id}
+                  onClick={() => handleRiskClick(risk)}
+                  className={cn(
+                    'flex items-start gap-4 p-4 rounded-lg border cursor-pointer transition-all hover:shadow-md',
+                    RISK_SEVERITY_COLORS[risk.severity]
+                  )}
+                >
+                  <div className={cn(
+                    'w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0',
+                    risk.severity === 'high' ? 'bg-red-500' :
+                    risk.severity === 'medium' ? 'bg-amber-500' : 'bg-blue-500'
+                  )}>
+                    {getRiskIcon(risk.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <Badge
+                        variant={risk.severity === 'high' ? 'danger' : risk.severity === 'medium' ? 'warning' : 'info'}
+                        size="sm"
+                      >
+                        {RISK_TYPE_LABELS[risk.type]}
+                      </Badge>
+                      <Badge variant="default" size="sm">
+                        {risk.severity === 'high' ? '高风险' : risk.severity === 'medium' ? '中风险' : '低风险'}
+                      </Badge>
+                      <span className="text-xs text-slate-500">
+                        已 {risk.days} 天
+                      </span>
+                    </div>
+                    <p className="font-medium text-slate-900">{risk.title}</p>
+                    <p className="text-sm text-slate-600 mt-1">{risk.description}</p>
+                    <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5" />
+                        {risk.customerName}
+                      </span>
+                      {risk.opportunityName && (
+                        <span className="flex items-center gap-1">
+                          <Target className="w-3.5 h-3.5" />
+                          {risk.opportunityName}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <UserCheck className="w-3.5 h-3.5" />
+                        {risk.ownerName}
+                      </span>
+                      {risk.lastActivity && (
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          最后活动: {formatDate(risk.lastActivity)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-slate-400 hover:text-blue-600 transition-colors">
+                    <ExternalLink className="w-5 h-5" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

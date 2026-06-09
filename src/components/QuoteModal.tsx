@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { X, DollarSign, FileText, Calendar, Plus, Trash2, Download, ArrowDown, ArrowUp, Minus, GitCompare } from 'lucide-react';
+import { X, DollarSign, FileText, Calendar, Plus, Trash2, Download, ArrowDown, ArrowUp, Minus, GitCompare, MessageSquare, CheckCircle2 } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Textarea } from './ui/Textarea';
 import { Badge } from './ui/Badge';
-import { Quote, Opportunity } from '../types';
+import { Select } from './ui/Select';
+import { Quote, Opportunity, NoteCategory } from '../types';
 import { OpportunityActivityLog } from './OpportunityActivityLog';
 import { formatCurrency, formatDate, getToday } from '../utils/helpers';
 import { useCRMStore } from '../store/useCRMStore';
@@ -18,13 +19,16 @@ interface QuoteModalProps {
 }
 
 export const QuoteModal = ({ isOpen, onClose, opportunity }: QuoteModalProps) => {
-  const { addQuote, getQuotesByOpportunity, getCustomerById, users } = useCRMStore();
+  const { addQuote, getQuotesByOpportunity, getCustomerById, users, addOpportunityNote } = useCRMStore();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showNoteForm, setShowNoteForm] = useState(false);
   const [quoteForm, setQuoteForm] = useState({
     amount: '',
     notes: '',
     date: getToday(),
   });
+  const [noteContent, setNoteContent] = useState('');
+  const [noteCategory, setNoteCategory] = useState<NoteCategory>('discussion');
 
   if (!opportunity) return null;
 
@@ -32,6 +36,15 @@ export const QuoteModal = ({ isOpen, onClose, opportunity }: QuoteModalProps) =>
   const customer = getCustomerById(opportunity.customerId);
   const owner = users.find(u => u.id === opportunity.ownerId);
   const latestQuote = quotes[0];
+
+  const handleAddNote = () => {
+    if (noteContent.trim()) {
+      addOpportunityNote(opportunity.id, noteContent.trim(), noteCategory);
+      setNoteContent('');
+      setNoteCategory('discussion');
+      setShowNoteForm(false);
+    }
+  };
 
   const handleAddQuote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,6 +200,74 @@ export const QuoteModal = ({ isOpen, onClose, opportunity }: QuoteModalProps) =>
         )}
 
         <div className="pt-4 border-t border-slate-200">
+          <div className="flex items-center justify-between mb-4">
+            <h5 className="font-semibold text-slate-900 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-amber-500" />
+              协作备注
+            </h5>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setShowNoteForm(!showNoteForm)}
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              添加备注
+            </Button>
+          </div>
+
+          {showNoteForm && (
+            <div className="bg-amber-50 rounded-lg p-4 space-y-4 mb-4">
+              <div className="flex items-center justify-between">
+                <h6 className="font-medium text-slate-900">添加新备注</h6>
+                <button
+                  type="button"
+                  onClick={() => setShowNoteForm(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <Select
+                label="备注类型"
+                value={noteCategory}
+                onChange={(e) => setNoteCategory(e.target.value as NoteCategory)}
+                options={[
+                  { value: 'discussion', label: '内部讨论' },
+                  { value: 'risk', label: '风险提醒' },
+                  { value: 'action', label: '下一步动作' },
+                ]}
+              />
+              <Textarea
+                label="备注内容"
+                value={noteContent}
+                onChange={(e) => setNoteContent(e.target.value)}
+                placeholder="请输入备注内容..."
+                rows={3}
+                required
+              />
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setShowNoteForm(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddNote}
+                  disabled={!noteContent.trim()}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-1" />
+                  保存备注
+                </Button>
+              </div>
+            </div>
+          )}
+
           <OpportunityActivityLog opportunityId={opportunity.id} />
         </div>
 

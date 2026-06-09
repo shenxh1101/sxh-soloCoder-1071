@@ -1,5 +1,5 @@
 import { History, TrendingUp, User, FileText, MessageSquare } from 'lucide-react';
-import { OpportunityActivityType } from '../types';
+import { OpportunityActivityType, NOTE_CATEGORY_LABELS, NOTE_CATEGORY_COLORS, NoteCategory } from '../types';
 import { Avatar } from './ui/Avatar';
 import { Badge } from './ui/Badge';
 import { formatDate } from '../utils/helpers';
@@ -30,6 +30,15 @@ const activityTypeLabels: Record<OpportunityActivityType, string> = {
   quote_add: '报价新增',
   owner_change: '负责人调整',
   note: '备注',
+};
+
+const getNoteBadgeVariant = (category?: NoteCategory) => {
+  switch (category) {
+    case 'discussion': return 'info';
+    case 'risk': return 'danger';
+    case 'action': return 'warning';
+    default: return 'default';
+  }
 };
 
 export const OpportunityActivityLog = ({ opportunityId, maxItems }: OpportunityActivityLogProps) => {
@@ -78,7 +87,7 @@ export const OpportunityActivityLog = ({ opportunityId, maxItems }: OpportunityA
 
                 <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 hover:border-slate-200 transition-colors">
                   <div className="flex items-start justify-between mb-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge
                         variant={
                           activity.type === 'quote_add'
@@ -93,6 +102,14 @@ export const OpportunityActivityLog = ({ opportunityId, maxItems }: OpportunityA
                       >
                         {activityTypeLabels[activity.type]}
                       </Badge>
+                      {activity.type === 'note' && activity.noteCategory && (
+                        <Badge
+                          variant={getNoteBadgeVariant(activity.noteCategory)}
+                          size="sm"
+                        >
+                          {NOTE_CATEGORY_LABELS[activity.noteCategory]}
+                        </Badge>
+                      )}
                       <span className="text-xs text-slate-500">
                         {formatDate(activity.createdAt)} {activityDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                       </span>

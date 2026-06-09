@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Customer, User, Contact, FollowUp, Opportunity, Task, Quote, Attachment, FunnelData, TeamPerformance, TaskStats, TimelineEvent, WeeklyWorkload, TimelineEventType, CustomerSummary, OpportunityActivityLog, OpportunityActivityType, STAGE_LABELS } from '../types';
+import { Customer, User, Contact, FollowUp, Opportunity, Task, Quote, Attachment, FunnelData, TeamPerformance, TaskStats, TimelineEvent, WeeklyWorkload, TimelineEventType, CustomerSummary, OpportunityActivityLog, OpportunityActivityType, STAGE_LABELS, RiskItem, NoteCategory } from '../types';
 import { mockCustomers, mockUsers } from '../data/mockData';
 import { generateId, calculateSalesFunnel, getToday } from '../utils/helpers';
 
@@ -59,8 +59,10 @@ interface CRMState {
   getTimelineEvents: (customerId: string) => TimelineEvent[];
   getWeeklyWorkload: () => WeeklyWorkload[];
   getCustomerSummary: (customerId: string) => CustomerSummary;
-  addOpportunityActivity: (opportunityId: string, type: OpportunityActivityType, description: string, oldValue?: string, newValue?: string) => void;
+  addOpportunityActivity: (opportunityId: string, type: OpportunityActivityType, description: string, oldValue?: string, newValue?: string, noteCategory?: NoteCategory) => void;
   getOpportunityActivityLog: (opportunityId: string) => OpportunityActivityLog[];
+  addOpportunityNote: (opportunityId: string, content: string, category: NoteCategory) => void;
+  getTeamRiskView: (ownerId?: string) => RiskItem[];
 }
 
 export const useCRMStore = create<CRMState>()(
@@ -249,6 +251,11 @@ export const useCRMStore = create<CRMState>()(
         const { currentUser, getOpportunityById } = get();
         const opportunity = getOpportunityById(opportunityId);
         const oldStage = opportunity?.stage;
+        
+        if (!opportunity || oldStage === stage) {
+          return;
+        }
+        
         const now = new Date();
         
         set((state) => ({
@@ -266,8 +273,8 @@ export const useCRMStore = create<CRMState>()(
                     description: `阶段从「${oldStage ? STAGE_LABELS[oldStage] : ''}」变更为「${STAGE_LABELS[stage]}」`,
                     userId: currentUser.id,
                     createdAt: now.toISOString(),
-                    oldValue: oldStage,
-                    newValue: stage,
+                    oldValue: STAGE_LABELS[oldStage],
+                    newValue: STAGE_LABELS[stage],
                   },
                   ...o.activityLog,
                 ],
@@ -286,14 +293,16 @@ export const useCRMStore = create<CRMState>()(
         if (data.ownerId && opportunity && data.ownerId !== opportunity.ownerId) {
           const oldOwner = users.find(u => u.id === opportunity.ownerId);
           const newOwner = users.find(u => u.id === data.ownerId);
+          const oldOwnerName = oldOwner?.name || opportunity.ownerId;
+          const newOwnerName = newOwner?.name || data.ownerId;
           activityLog.push({
             id: generateId(),
             type: 'owner_change',
-            description: `负责人从「${oldOwner?.name || opportunity.ownerId}」变更为「${newOwner?.name || data.ownerId}」`,
+            description: `负责人从「${oldOwnerName}」变更为「${newOwnerName}」`,
             userId: currentUser.id,
             createdAt: now.toISOString(),
-            oldValue: opportunity.ownerId,
-            newValue: data.ownerId,
+            oldValue: oldOwnerName,
+            newValue: newOwnerName,
           });
         }
 
@@ -731,7 +740,7 @@ export const useCRMStore = create<CRMState>()(
         };
       },
 
-      addOpportunityActivity: (opportunityId, type, description, oldValue, newValue) => {
+      addOpportunityActivity: (opportunityId, type, description, oldValue, newValue, noteCategory) => {
         const { currentUser } = get();
         const now = new Date();
         set((state) => ({
@@ -750,6 +759,7 @@ export const useCRMStore = create<CRMState>()(
                     createdAt: now.toISOString(),
                     oldValue,
                     newValue,
+                    noteCategory,
                   },
                   ...o.activityLog,
                 ],
@@ -759,9 +769,137 @@ export const useCRMStore = create<CRMState>()(
         }));
       },
 
+      addOpportunityNote: (opportunityId, content, category) => {
+        const { currentUser } = get();
+        get().addOpportunityActivity(
+          opportunityId,
+          'note',
+          content,
+          undefined,
+          undefined,
+          category
+        );
+      },
+
       getOpportunityActivityLog: (opportunityId) => {
         const opportunity = get().getOpportunityById(opportunityId);
         return opportunity?.activityLog || [];
+      },
+
+      getTeamRiskView: (ownerId) => {
+        const { customers, users } = get();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const risks: RiskItem[] = [];
+
+        customers.forEach((customer) => {
+          const owner = users.find(u => u.id === customer.ownerId);
+          if (!owner || (ownerId && customer.ownerId !== ownerId)) return;
+
+          const overdueTasks = customer.tasks.filter(
+            (t) => !t.completed && new Date(t.date) < today
+          );
+          overdueTasks.forEach((task) => {
+            const daysOverdue = Math.floor(
+              (today.getTime() - new Date(task.date).getTime()) / (1000 * 60 * 60 * 24)
+            );
+            risks.push({
+              id: `task-${task.id}`,
+              type: 'overdue_task',
+              severity: daysOverdue > 7 ? 'high' : daysOverdue > 3 ? 'medium' : 'low',
+              title: `任务逾期：${task.title}`,
+              description: `已逾期 ${daysOverdue} 天`,
+              customerId: customer.id,
+              customerName: customer.name,
+              ownerId: customer.ownerId,
+              ownerName: owner.name,
+              days: daysOverdue,
+              lastActivity: task.date,
+            });
+          });
+
+          const sortedFollowUps = [...customer.followUps].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          );
+          const lastFollowUp = sortedFollowUps[0];
+          if (lastFollowUp) {
+            const daysSinceFollowUp = Math.floor(
+              (today.getTime() - new Date(lastFollowUp.date).getTime()) / (1000 * 60 * 60 * 24)
+            );
+            if (daysSinceFollowUp > 14) {
+              risks.push({
+                id: `followup-${customer.id}`,
+                type: 'no_followup',
+                severity: daysSinceFollowUp > 21 ? 'high' : 'medium',
+                title: `长时间未跟进`,
+                description: `已 ${daysSinceFollowUp} 天没有跟进记录`,
+                customerId: customer.id,
+                customerName: customer.name,
+                ownerId: customer.ownerId,
+                ownerName: owner.name,
+                days: daysSinceFollowUp,
+                lastActivity: lastFollowUp.date,
+              });
+            }
+          }
+
+          customer.opportunities.forEach((opportunity) => {
+            if (opportunity.stage === 'won' || opportunity.stage === 'lost') return;
+
+            const daysSinceUpdate = Math.floor(
+              (today.getTime() - new Date(opportunity.updatedAt).getTime()) / (1000 * 60 * 60 * 24)
+            );
+            if (daysSinceUpdate > 7) {
+              risks.push({
+                id: `stalled-${opportunity.id}`,
+                type: 'stalled_opportunity',
+                severity: daysSinceUpdate > 14 ? 'high' : 'medium',
+                title: `商机停滞：${opportunity.name}`,
+                description: `已 ${daysSinceUpdate} 天没有更新`,
+                customerId: customer.id,
+                customerName: customer.name,
+                opportunityId: opportunity.id,
+                opportunityName: opportunity.name,
+                ownerId: customer.ownerId,
+                ownerName: owner.name,
+                days: daysSinceUpdate,
+                lastActivity: opportunity.updatedAt,
+              });
+            }
+
+            if (opportunity.quotes.length > 0 && opportunity.stage === 'proposal') {
+              const lastQuote = opportunity.quotes[opportunity.quotes.length - 1];
+              const daysSinceQuote = Math.floor(
+                (today.getTime() - new Date(lastQuote.date).getTime()) / (1000 * 60 * 60 * 24)
+              );
+              if (daysSinceQuote > 7) {
+                risks.push({
+                  id: `quote-${opportunity.id}`,
+                  type: 'quote_no_progress',
+                  severity: daysSinceQuote > 14 ? 'high' : 'medium',
+                  title: `报价后无推进：${opportunity.name}`,
+                  description: `报价后已 ${daysSinceQuote} 天没有阶段推进`,
+                  customerId: customer.id,
+                  customerName: customer.name,
+                  opportunityId: opportunity.id,
+                  opportunityName: opportunity.name,
+                  ownerId: customer.ownerId,
+                  ownerName: owner.name,
+                  days: daysSinceQuote,
+                  lastActivity: lastQuote.date,
+                });
+              }
+            }
+          });
+        });
+
+        return risks.sort((a, b) => {
+          const severityOrder = { high: 0, medium: 1, low: 2 };
+          if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+            return severityOrder[a.severity] - severityOrder[b.severity];
+          }
+          return b.days - a.days;
+        });
       },
     }),
     {

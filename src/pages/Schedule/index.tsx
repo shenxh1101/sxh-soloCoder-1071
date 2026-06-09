@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -57,6 +57,13 @@ export const Schedule = () => {
     date: getToday(),
     assignedTo: currentUser.id,
   });
+
+  useEffect(() => {
+    setTaskForm(prev => ({
+      ...prev,
+      assignedTo: currentUser.id,
+    }));
+  }, [currentUser.id]);
 
   const allTasks = getAllTasks();
   const currentUserTasks = allTasks.filter(t => t.assignedTo === currentUser.id);

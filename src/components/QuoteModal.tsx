@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, DollarSign, FileText, Calendar, Plus, Trash2, Download } from 'lucide-react';
+import { X, DollarSign, FileText, Calendar, Plus, Trash2, Download, ArrowDown, ArrowUp, Minus, GitCompare } from 'lucide-react';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -8,6 +8,7 @@ import { Badge } from './ui/Badge';
 import { Quote, Opportunity } from '../types';
 import { formatCurrency, formatDate, getToday } from '../utils/helpers';
 import { useCRMStore } from '../store/useCRMStore';
+import { cn } from '../utils/helpers';
 
 interface QuoteModalProps {
   isOpen: boolean;
@@ -191,48 +192,104 @@ export const QuoteModal = ({ isOpen, onClose, opportunity }: QuoteModalProps) =>
             <p className="text-sm mt-1">点击上方"新增报价"添加第一条报价</p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-80 overflow-y-auto scrollbar-thin">
-            {quotes.map((quote, index) => (
-              <div
-                key={quote.id}
-                className="border border-slate-200 rounded-lg p-4 hover:border-slate-300 transition-colors"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-sm font-semibold text-slate-600">
-                      #{quotes.length - index}
+          <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin">
+            {quotes.map((quote, index) => {
+              const prevQuote = quotes[index + 1];
+              const amountDiff = prevQuote ? quote.amount - prevQuote.amount : 0;
+              const notesChanged = prevQuote && quote.notes !== prevQuote.notes;
+
+              return (
+                <div
+                  key={quote.id}
+                  className={cn(
+                    'border rounded-lg p-4 hover:border-slate-300 transition-colors',
+                    index === 0 ? 'border-emerald-300 bg-emerald-50/30' : 'border-slate-200 bg-white'
+                  )}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        'w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold',
+                        index === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                      )}>
+                        #{quotes.length - index}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-emerald-600 text-lg">
+                            {formatCurrency(quote.amount)}
+                          </span>
+                          {prevQuote && (
+                            <div className={cn(
+                              'flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium',
+                              amountDiff > 0
+                                ? 'bg-red-100 text-red-700'
+                                : amountDiff < 0
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-100 text-slate-600'
+                            )}>
+                              {amountDiff > 0 ? (
+                                <ArrowUp className="w-3 h-3" />
+                              ) : amountDiff < 0 ? (
+                                <ArrowDown className="w-3 h-3" />
+                              ) : (
+                                <Minus className="w-3 h-3" />
+                              )}
+                              {amountDiff > 0 ? '+' : ''}{formatCurrency(amountDiff)}
+                            </div>
+                          )}
+                          {index === 0 && (
+                            <Badge variant="success" size="sm">最新</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {formatDate(quote.date)}
+                          </span>
+                          {prevQuote && (
+                            <span className="flex items-center gap-1 text-slate-400">
+                              <GitCompare className="w-3 h-3" />
+                              版本 {quotes.length - index} / {quotes.length}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-emerald-600">
-                          {formatCurrency(quote.amount)}
-                        </span>
-                        {index === 0 && (
-                          <Badge variant="success" size="sm">最新</Badge>
+                    <button
+                      className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors"
+                      title="下载报价单"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {quote.notes && (
+                    <div className="mt-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium text-slate-500">备注</span>
+                        {notesChanged && (
+                          <Badge variant="warning" size="sm">已更新</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatDate(quote.date)}
-                        </span>
-                      </div>
+                      <p className="text-sm text-slate-600 bg-white rounded p-2 border border-slate-100">
+                        {quote.notes}
+                      </p>
+                      {notesChanged && prevQuote?.notes && (
+                        <div className="mt-2 p-2 bg-amber-50 rounded border border-amber-200">
+                          <p className="text-xs font-medium text-amber-700 mb-1">上一版本备注:</p>
+                          <p className="text-xs text-amber-600">{prevQuote.notes}</p>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <button
-                    className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600 transition-colors"
-                    title="下载报价单"
-                  >
-                    <Download className="w-4 h-4" />
-                  </button>
+                  )}
+                  {prevQuote && !quote.notes && prevQuote.notes && (
+                    <div className="mt-2 p-2 bg-red-50 rounded border border-red-200">
+                      <p className="text-xs text-red-600">备注已删除，上一版本: {prevQuote.notes}</p>
+                    </div>
+                  )}
                 </div>
-                {quote.notes && (
-                  <p className="mt-3 text-sm text-slate-600 bg-slate-50 rounded p-2">
-                    {quote.notes}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

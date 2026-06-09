@@ -8,6 +8,11 @@ import {
   BarChart3,
   PieChart as PieChartIcon,
   UserCheck,
+  Phone,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  LayoutGrid,
 } from 'lucide-react';
 import { useCRMStore } from '../../store/useCRMStore';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
@@ -28,12 +33,14 @@ export const Reports = () => {
     getAllOpportunities,
     getSalesFunnel,
     getTeamPerformance,
+    getWeeklyWorkload,
     currentUser,
   } = useCRMStore();
 
   const allOpportunities = getAllOpportunities();
   const salesFunnel = getSalesFunnel();
   const teamPerformance = getTeamPerformance();
+  const weeklyWorkload = getWeeklyWorkload();
   const sourceStats = calculateSourceStats(customers);
   const industryStats = calculateIndustryStats(customers);
 
@@ -270,6 +277,129 @@ export const Reports = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5 text-slate-600" />
+              <h3 className="font-semibold text-slate-900">团队工作量视图</h3>
+            </div>
+            <p className="text-sm text-slate-500 mt-1">
+              本周各销售人员工作负荷统计
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Phone className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-blue-600">新增跟进</p>
+                  <p className="text-xl font-bold text-blue-700">
+                    {weeklyWorkload.reduce((sum, w) => sum + w.newFollowUps, 0)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg">
+                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-emerald-600">完成任务</p>
+                  <p className="text-xl font-bold text-emerald-700">
+                    {weeklyWorkload.reduce((sum, w) => sum + w.completedTasks, 0)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg">
+                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-red-600">逾期任务</p>
+                  <p className="text-xl font-bold text-red-700">
+                    {weeklyWorkload.reduce((sum, w) => sum + w.overdueTasks, 0)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg">
+                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-amber-600">报价次数</p>
+                  <p className="text-xl font-bold text-amber-700">
+                    {weeklyWorkload.reduce((sum, w) => sum + w.quoteCount, 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {weeklyWorkload.filter(w => w.userId !== 'user-1').map((member) => {
+                const workloadScore = member.newFollowUps + member.completedTasks + member.quoteCount;
+                const needsSupport = member.overdueTasks > 2 || (workloadScore < 5 && member.overdueTasks > 0);
+
+                return (
+                  <div
+                    key={member.userId}
+                    className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${
+                      needsSupport
+                        ? 'bg-red-50 border-red-200 hover:bg-red-100'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Avatar name={member.name} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">{member.name}</p>
+                        {needsSupport && (
+                          <Badge variant="danger" size="sm">需要支援</Badge>
+                        )}
+                        {member.userId === currentUser.id && (
+                          <Badge variant="info" size="sm">我</Badge>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-4 gap-3 mt-2">
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500">新增跟进</p>
+                          <p className="text-lg font-semibold text-blue-600">{member.newFollowUps}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500">完成任务</p>
+                          <p className="text-lg font-semibold text-emerald-600">{member.completedTasks}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500">逾期任务</p>
+                          <p className={`text-lg font-semibold ${member.overdueTasks > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                            {member.overdueTasks}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-slate-500">报价次数</p>
+                          <p className="text-lg font-semibold text-amber-600">{member.quoteCount}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="w-16 h-16 rounded-full border-4 border-slate-200 flex items-center justify-center relative overflow-hidden">
+                        <div
+                          className={`absolute bottom-0 left-0 right-0 transition-all ${
+                            workloadScore >= 15 ? 'bg-emerald-500' : workloadScore >= 8 ? 'bg-amber-500' : 'bg-red-500'
+                          }`}
+                          style={{ height: `${Math.min(100, workloadScore * 5)}%` }}
+                        />
+                        <span className="relative z-10 text-sm font-bold text-slate-700">{workloadScore}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">工作量指数</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

@@ -96,6 +96,7 @@ const generateOpportunities = (customerId: string, ownerId: string): Opportunity
         amount: Math.floor(Math.random() * 500000) + 100000,
         date: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes: '初次报价，包含基础功能',
+        createdAt: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
       },
       ...(stageIndex >= 3 ? [{
         id: `quote-${customerId}-${i}-2`,
@@ -103,6 +104,7 @@ const generateOpportunities = (customerId: string, ownerId: string): Opportunity
         amount: Math.floor(Math.random() * 500000) + 100000,
         date: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         notes: '二次报价，增加定制开发内容',
+        createdAt: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
       }] : []),
     ] : [];
     

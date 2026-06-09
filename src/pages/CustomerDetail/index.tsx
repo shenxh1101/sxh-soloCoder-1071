@@ -567,7 +567,7 @@ export const CustomerDetail = () => {
               添加跟进记录
             </Button>
           </div>
-          <Timeline followUps={customer.followUps} />
+          <Timeline customerId={customer.id} />
         </div>
       )}
 

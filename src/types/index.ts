@@ -44,6 +44,20 @@ export interface Quote {
   amount: number;
   date: string;
   notes: string;
+  createdAt: string;
+}
+
+export type TimelineEventType = 'followup' | 'attachment' | 'quote' | 'opportunity' | 'task';
+
+export interface TimelineEvent {
+  id: string;
+  type: TimelineEventType;
+  date: string;
+  time: string;
+  title: string;
+  description: string;
+  userId: string;
+  metadata?: Record<string, any>;
 }
 
 export interface Opportunity {
@@ -120,6 +134,16 @@ export interface TaskStats {
   completionRate: number;
 }
 
+export interface WeeklyWorkload {
+  userId: string;
+  name: string;
+  avatar: string;
+  newFollowUps: number;
+  completedTasks: number;
+  overdueTasks: number;
+  quoteCount: number;
+}
+
 export const STAGE_LABELS: Record<Opportunity['stage'], string> = {
   initial: '初步接触',
   needs: '需求确认',
@@ -156,6 +180,14 @@ export const FOLLOWUP_TYPE_LABELS: Record<FollowUp['type'], string> = {
   meeting: '会议',
   email: '邮件',
   other: '其他',
+};
+
+export const TIMELINE_TYPE_LABELS: Record<TimelineEventType, string> = {
+  followup: '跟进记录',
+  attachment: '附件上传',
+  quote: '报价记录',
+  opportunity: '商机创建',
+  task: '任务创建',
 };
 
 export const SOURCES = ['官网', '转介绍', '展会', '电话营销', '网络推广', '合作伙伴', '其他'];

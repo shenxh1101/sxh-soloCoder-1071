@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Customer, User, Contact, FollowUp, Opportunity, Task, Quote, Attachment, FunnelData, TeamPerformance, TaskStats } from '../types';
+import { Customer, User, Contact, FollowUp, Opportunity, Task, Quote, Attachment, FunnelData, TeamPerformance, TaskStats, TimelineEvent, WeeklyWorkload, TimelineEventType } from '../types';
 import { mockCustomers, mockUsers } from '../data/mockData';
 import { generateId, calculateSalesFunnel, getToday } from '../utils/helpers';
 
@@ -35,7 +35,7 @@ interface CRMState {
   addOpportunity: (customerId: string, opportunity: Omit<Opportunity, 'id' | 'createdAt' | 'updatedAt' | 'quotes' | 'customerId'>) => void;
   updateOpportunityStage: (opportunityId: string, stage: Opportunity['stage']) => void;
   updateOpportunity: (opportunityId: string, data: Partial<Opportunity>) => void;
-  addQuote: (opportunityId: string, quote: Omit<Quote, 'id'>) => void;
+  addQuote: (opportunityId: string, quote: Omit<Quote, 'id' | 'createdAt'>) => void;
   getQuotesByOpportunity: (opportunityId: string) => Quote[];
   getOpportunityById: (opportunityId: string) => Opportunity | undefined;
 
@@ -45,6 +45,8 @@ interface CRMState {
   deleteTask: (taskId: string) => void;
   setCurrentUser: (userId: string) => void;
   getTaskStats: (userId: string) => TaskStats;
+  getTimelineEvents: (customerId: string) => TimelineEvent[];
+  getWeeklyWorkload: () => WeeklyWorkload[];
 
   setSearchKeyword: (keyword: string) => void;
   setFilters: (filters: { level?: string; source?: string; ownerId?: string }) => void;
@@ -262,9 +264,11 @@ export const useCRMStore = create<CRMState>()(
       },
 
       addQuote: (opportunityId, quote) => {
+        const now = new Date();
         const newQuote: Quote = {
           ...quote,
           id: generateId(),
+          createdAt: now.toISOString(),
         };
         set((state) => ({
           customers: state.customers.map((c) => ({
@@ -278,7 +282,12 @@ export const useCRMStore = create<CRMState>()(
 
       getQuotesByOpportunity: (opportunityId) => {
         const opportunity = get().getOpportunityById(opportunityId);
-        return opportunity ? opportunity.quotes.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) : [];
+        if (!opportunity) return [];
+        return [...opportunity.quotes].sort((a, b) => {
+          const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+          if (dateCompare !== 0) return dateCompare;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
       },
 
       getOpportunityById: (opportunityId) => {
@@ -428,6 +437,151 @@ export const useCRMStore = create<CRMState>()(
 
       getTasksByUser: (userId) => {
         return get().getAllTasks().filter((t) => t.assignedTo === userId);
+      },
+
+      getTimelineEvents: (customerId) => {
+        const customer = get().getCustomerById(customerId);
+        if (!customer) return [];
+
+        const events: TimelineEvent[] = [];
+
+        customer.followUps.forEach((followUp) => {
+          const dateTime = new Date(followUp.date);
+          events.push({
+            id: `followup-${followUp.id}`,
+            type: 'followup',
+            date: followUp.date,
+            time: dateTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            title: followUp.type === 'call' ? '电话沟通' : followUp.type === 'meeting' ? '会议洽谈' : followUp.type === 'email' ? '邮件往来' : '其他跟进',
+            description: followUp.content,
+            userId: followUp.userId,
+            metadata: {
+              result: followUp.result,
+              nextContactDate: followUp.nextContactDate,
+              followUpType: followUp.type,
+            },
+          });
+        });
+
+        customer.attachments.forEach((attachment) => {
+          const dateTime = new Date(attachment.uploadedAt);
+          events.push({
+            id: `attachment-${attachment.id}`,
+            type: 'attachment',
+            date: attachment.uploadedAt,
+            time: dateTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            title: '上传附件',
+            description: attachment.name,
+            userId: customer.ownerId,
+            metadata: {
+              size: attachment.size,
+              type: attachment.type,
+            },
+          });
+        });
+
+        customer.opportunities.forEach((opportunity) => {
+          const createDateTime = new Date(opportunity.createdAt);
+          events.push({
+            id: `opportunity-${opportunity.id}`,
+            type: 'opportunity',
+            date: opportunity.createdAt,
+            time: createDateTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            title: '创建商机',
+            description: `${opportunity.name} - ${opportunity.amount.toLocaleString()}元`,
+            userId: opportunity.ownerId,
+            metadata: {
+              stage: opportunity.stage,
+              amount: opportunity.amount,
+              probability: opportunity.probability,
+            },
+          });
+
+          opportunity.quotes.forEach((quote) => {
+            const quoteDateTime = new Date(quote.createdAt);
+            events.push({
+              id: `quote-${quote.id}`,
+              type: 'quote',
+              date: quote.date,
+              time: quoteDateTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+              title: '提交报价',
+              description: `${quote.amount.toLocaleString()}元${quote.notes ? ` - ${quote.notes}` : ''}`,
+              userId: opportunity.ownerId,
+              metadata: {
+                amount: quote.amount,
+                notes: quote.notes,
+                opportunityId: opportunity.id,
+              },
+            });
+          });
+        });
+
+        customer.tasks.forEach((task) => {
+          const dateTime = new Date(task.date);
+          events.push({
+            id: `task-${task.id}`,
+            type: 'task',
+            date: task.date,
+            time: dateTime.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+            title: task.completed ? '完成任务' : '创建任务',
+            description: task.title,
+            userId: task.assignedTo,
+            metadata: {
+              completed: task.completed,
+            },
+          });
+        });
+
+        return events.sort((a, b) => {
+          const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+          if (dateCompare !== 0) return dateCompare;
+          return b.time.localeCompare(a.time);
+        });
+      },
+
+      getWeeklyWorkload: () => {
+        const { users, customers } = get();
+        const today = new Date();
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+
+        return users.map((user) => {
+          const userOpportunities = customers.flatMap((c) =>
+            c.opportunities.filter((o) => o.ownerId === user.id)
+          );
+
+          const userFollowUps = customers.flatMap((c) =>
+            c.followUps.filter((f) => f.userId === user.id && new Date(f.date) >= weekStart)
+          );
+
+          const userTasks = customers.flatMap((c) =>
+            c.tasks.filter((t) => t.assignedTo === user.id)
+          );
+
+          const completedTasksThisWeek = userTasks.filter(
+            (t) => t.completed && new Date(t.date) >= weekStart
+          );
+
+          const overdueTasks = userTasks.filter(
+            (t) => !t.completed && new Date(t.date) < today
+          );
+
+          const quoteCount = userOpportunities.reduce(
+            (sum, o) => sum + o.quotes.filter((q) => new Date(q.date) >= weekStart).length,
+            0
+          );
+
+          return {
+            userId: user.id,
+            name: user.name,
+            avatar: user.avatar,
+            newFollowUps: userFollowUps.length,
+            completedTasks: completedTasksThisWeek.length,
+            overdueTasks: overdueTasks.length,
+            quoteCount,
+          };
+        });
       },
     }),
     {
